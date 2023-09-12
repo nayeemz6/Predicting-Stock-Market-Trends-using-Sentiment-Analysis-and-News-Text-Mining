@@ -1,0 +1,23 @@
+
+header,section, footer {
+    padding: 20px;
+}
+
+/* Header & Footer */
+header, footer {
+    background-color: black;
+    text-align: center;
+    color: yellow;
+}
+
+header {
+    padding: 40px 0;
+}
+
+/* Footer */
+footer {
+    background-color: #333;
+    text-align: center;
+    padding: 20px 0;
+    margin-top: 20px;
+}

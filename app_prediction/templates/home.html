@@ -1,0 +1,235 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<head>
+  <meta charset="UTF-8">
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://d3js.org/d3.v5.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-cloud/1.2.5/d3.layout.cloud.js"></script>
+
+  
+  <title>Home</title>
+</head>
+
+<body>
+  <div class="card shadow text-center m-2 text-white bg-dark mb-3">
+  <div class="card-body">
+    <h4 class="card-title">Enter Headlines and Prediction Details</h4>
+          <form id="prediction-form">
+    <!-- Your input fields here -->
+    <input type="text" name="headline" placeholder="Headline">
+    <br>
+    <label for="date">Date:</label><br>
+    <input type="date" id="date" name="date"><br>
+
+    <label for="open_price">Open Price:</label><br>
+    <input type="number" id="open_price" name="open_price" step="0.01"><br>
+
+    <label for="high_price">High Price:</label><br>
+    <input type="number" id="high_price" name="high_price" step="0.01"><br>
+
+    <label for="low_price">Low Price:</label><br>
+    <input type="number" id="low_price" name="low_price" step="0.01"><br>
+
+    <label for="volume">Volume:</label><br>
+    <input type="number" id="volume" name="volume"><br>
+    <!-- More input fields ... -->
+
+    <button type="submit" class="btn btn-warning mt-2">submit</button>
+  </form>
+  </div>
+
+  </div>
+
+
+  <!-- Display the prediction and other data -->
+  <div class="row row-cols-1 row-cols-md-3">
+    <div class="col">
+      <div class="card shadow">
+        <div id="results" style="display:none" class="card-body">
+          <h5 class="card-title text-dark">Outputs</h5>
+          <p class="badge-info text-dark m-0">Prediction: <span id="prediction"></span></p>
+          <p class="badge-danger text-dark m-0">Negative: <span  id="vader_negative"></span></p>
+          <p class="badge-warning text-dark m-0">Neutral: <span id="vader_neutral"></span></p>
+          <p class="badge-success text-dark m-0">Positive: <span id="vader_positive"></span></p>
+          <p class="badge-primary text-dark m-0" >Compound: <span id="vader_compound"></span></p>
+        </div>
+      </div>
+    </div>
+  
+    <div class="col">
+      <div class="card shadow">
+       <div class="card-body">
+          <h5 class="card-title text-dark" style="display:none">Bar Chart</h5>
+          <canvas id="sentimentChart" width="400" height="200"></canvas>
+        </div>
+      </div>
+    </div>
+  
+    <div class="col">
+      <div class="card shadow">
+         <div class="card-body">
+          <h5 class="card-title text-dark" style="display:none">Prediction Chart</h5>
+          <canvas id="predictionChart" width="400" height="200"></canvas>
+          </div>
+      </div>
+    </div>
+  
+  </div>
+  <div class="card shadow card-body mt-2 " >
+    <div id="word-cloud-container" class="text-center "></div>
+  </div>
+  
+
+<script>
+  function createWordCloud(words) {
+  var layout = d3.layout.cloud()
+    .size([500, 500])
+    .words(Object.keys(words).map(function(d) {
+      return {text: d, size: words[d] * 20};
+    }))
+    .padding(5)
+    .rotate(function() { return ~~(Math.random() * 2) * 90; })
+    .font("Impact")
+    .fontSize(function(d) { return d.size; })
+    .on("end", draw);
+
+  layout.start();
+
+  function draw(words) {
+    d3.select("#word-cloud-container").append("svg") 
+      .attr("width", layout.size()[0])
+      .attr("height", layout.size()[1])
+      .append("g")
+      .attr("transform", "translate(" + layout.size()[0] / 2 + "," + layout.size()[1] / 2 + ")")
+      .selectAll("text")
+      .data(words)
+      .enter().append("text")
+      .style("font-size", function(d) { return d.size + "px"; })
+      .style("font-family", "Impact")
+      .style("fill", function(d, i) { return d3.schemeCategory10[i % 10]; })
+      .attr("text-anchor", "middle")
+      .attr("transform", function(d) {
+        return "translate(" + [d.x, d.y] + ")rotate(" + d.rotate + ")";
+      })
+      .text(function(d) { return d.text; });
+  }
+}
+</script>
+  <!-- Your Ajax call -->
+  <script>
+    $(document).ready(function () {
+      $("#prediction-form").submit(function (event) {
+        event.preventDefault();
+        var formData = $(this).serialize();
+        $.ajax({
+          headers: { "X-CSRFToken": '{{ csrf_token }}' },
+          url: '/api/predict',
+          type: 'POST',
+          data: formData,
+          success: function (response) {
+            if (response.status === 'success') {
+            // Update the UI with the prediction and other data
+            $('#prediction').text(response.prediction);
+            $('#vader_negative').text(response.vader_negative);
+            $('#vader_neutral').text(response.vader_neutral);
+            $('#vader_positive').text(response.vader_positive);
+            $('#vader_compound').text(response.vader_compound);
+            $('#date').text(response.date);
+            $('#results').show();
+              // Create the sentiment chart
+              var ctx1 = document.getElementById('sentimentChart').getContext('2d');
+              var sentimentChart = new Chart(ctx1, {
+                type: 'bar',
+                data: {
+                  labels: ['Negative', 'Neutral', 'Positive', 'Compound'],
+                  datasets: [{
+                    label: 'Sentiment Scores',
+                    data: [response.vader_negative, response.vader_neutral, response.vader_positive, response.vader_compound],
+                    backgroundColor: ['red', 'yellow', 'green', 'blue'], // Different colors for each bar
+                    borderColor: 'black',
+                    borderWidth: 1
+                  }]
+                },
+                options: {
+                  scales: {
+                    y: {
+                      beginAtZero: true
+                    }
+                  }
+                }
+              });
+
+              // Create the stock variables and prediction chart
+              var ctx3 = document.getElementById('predictionChart').getContext('2d');
+              var predictionChart = new Chart(ctx3, {
+                type: 'line',  // Keep it as 'line' for line charts
+                data: {
+                  labels: ['Open Price', 'High Price', 'Low Price', 'Volume', 'Prediction'],
+                  datasets: [
+                    {
+                      label: 'Open Price',
+                      data: [response.open_price, null, null, null, null],
+                      borderColor: 'blue',
+                      fill: false,
+                      lineTension: 2  // Add this line
+                    },
+                    {
+                      label: 'High Price',
+                      data: [null, response.high_price, null, null, null],
+                      borderColor: 'green',
+                      fill: false,
+                      lineTension: 2  // Add this line
+                    },
+                    {
+                      label: 'Low Price',
+                      data: [null, null, response.low_price, null, null],
+                      borderColor: 'red',
+                      fill: false,
+                      lineTension: 2  // Add this line
+                    },
+                    {
+                      label: 'Volume',
+                      data: [null, null, null, response.volume, null],
+                      borderColor: 'orange',
+                      fill: false,
+                      lineTension: 2  // Add this line
+                    },
+                    {
+                      label: 'Prediction',
+                      data: [null, null, null, null, response.prediction],
+                      borderColor: 'purple',
+                      fill: false,
+                      lineTension: 2  // Add this line
+                    }
+                  ]
+                },
+                options: {
+                  scales: {
+                    y: {
+                      beginAtZero: true
+                    }
+                  }
+                }
+              });
+                  // Create the word cloud
+                  var words = response.bag_of_words;
+                  createWordCloud(words);
+            } else {
+              alert('Error: ' + response.error);
+            }
+          }
+        });
+      });
+    });
+  </script>
+
+
+
+
+
+
+
+
+  {% endblock %}
